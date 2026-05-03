@@ -10,3 +10,4 @@ datasets/
 *.ckpt
 runs/
 wandb/
+src/experiments/
