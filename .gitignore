@@ -1,13 +1,61 @@
+# =========================
+# Python cache / environment
+# =========================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
 .venv/
+venv/
+env/
 .env
+
+
+# =========================
+# Data / datasets
+# =========================
 data/
 datasets/
+
 *.zip
 *.tar
+*.tar.gz
+*.gz
+
+
+# =========================
+# Model checkpoints / weights / embeddings
+# =========================
+checkpoints/
+
 *.pth
+*.pt
 *.ckpt
+*.npy
+*.npz
+
+
+# =========================
+# Outputs / logs / experiment runs
+# =========================
+outputs/
+logs/
+run_log_*.txt
+
 runs/
 wandb/
+
+
+# =========================
+# Local experiments
+# =========================
 src/experiments/
+
+
+# =========================
+# OS / IDE files
+# =========================
+.DS_Store
+.vscode/
+.idea/
