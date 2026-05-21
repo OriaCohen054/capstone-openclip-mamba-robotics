@@ -1,0 +1,27 @@
+# Core ML / Deep Learning
+torch
+torchvision
+torchaudio
+
+# OpenCLIP visual encoder
+open_clip_torch
+
+# Mamba sequence model
+mamba-ssm
+causal-conv1d
+
+# YOLO filtering
+ultralytics
+
+# Data processing
+numpy
+pandas
+
+# Image processing
+Pillow
+
+# Progress bars
+tqdm
+
+# Optional UI
+streamlit
