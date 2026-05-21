@@ -42,19 +42,42 @@ RoboMamba_OpenCLIP/
 │   ├── trajectory_scanner.py
 │   └── weights_registry.py
 │
-├── checkpoints/
+├── checkpoints/          # ignored by Git
 │   ├── archive/
 │   └── weights_registry.json
 │
-├── outputs/
+├── outputs/              # ignored by Git
 │   └── logs/
 │
 ├── docs/
 ├── ui/
-├── data/
+├── data/                 # ignored by Git except optional small samples
+├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
+
+Some runtime folders such as `checkpoints/`, `outputs/`, and `data/` are intentionally ignored by Git because they may contain large datasets, model weights, logs, or generated embeddings.
+
+---
+
+## Installation
+
+Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+Recommended environment:
+
+```text
+Python 3.10
+CUDA-enabled GPU
+PyTorch with CUDA support
+```
+
+The project was tested in a Conda environment named `mamba_proj`.
 
 ---
 
@@ -370,6 +393,45 @@ This result is only a pipeline sanity check, not a final trained model.
 
 ---
 
+## First Longer Training Result
+
+A first longer training run was executed with:
+
+```bash
+python src/train.py \
+  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
+  --status_filter SUCCESS \
+  --seq_length 10 \
+  --d_model 128 \
+  --batch_size 16 \
+  --learning_rate 0.001 \
+  --max_epochs 20 \
+  --patience 5 \
+  --run_name mamba_k10_d128_lr0001_pick_success_v1 \
+  --force_train
+```
+
+Training stopped early at epoch 14.
+
+Best checkpoint:
+
+```text
+Run name: mamba_k10_d128_lr0001_pick_success_v1
+Best epoch: 9
+Best validation loss: 0.004267
+```
+
+Evaluation result:
+
+```text
+Evaluated samples: 33344
+MSE: 0.004267
+MAE: 0.019006
+Per-dimension MAE: [0.0062 0.0079 0.0111 0.0065 0.0072 0.034  0.0602]
+```
+
+---
+
 ## Current Verified Status
 
 The full code pipeline was tested successfully with:
@@ -395,23 +457,7 @@ Evaluation completed successfully.
 
 ---
 
-## Suggested Full Training Run
-
-After the pipeline sanity check passes, a more serious training run can be executed:
-
-```bash
-python src/train.py \
-  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
-  --status_filter SUCCESS \
-  --seq_length 10 \
-  --d_model 128 \
-  --batch_size 16 \
-  --learning_rate 0.001 \
-  --max_epochs 20 \
-  --patience 5 \
-  --run_name mamba_k10_d128_lr0001_pick_success_v1 \
-  --force_train
-```
+## Suggested Future Experiments
 
 Possible future experiments:
 
@@ -420,6 +466,15 @@ seq_length = 20
 d_model = 256
 batch_size = 32
 learning_rate = 0.0005
+```
+
+The current default working setup is:
+
+```text
+seq_length = 10
+d_model = 128
+batch_size = 16
+learning_rate = 0.001
 ```
 
 ---
@@ -496,6 +551,8 @@ logs/
 *.pth
 *.pt
 *.ckpt
+*.npy
+*.npz
 
 runs/
 wandb/
@@ -590,7 +647,7 @@ Raw trajectories
 
 Next planned steps:
 
-1. Run a longer training experiment.
-2. Update the UI to use `weights_registry.json`.
-3. Improve README with final training results.
-4. Optionally add sample data for reproducibility.
+1. Update the UI to use `weights_registry.json`.
+2. Add optional sample data for reproducibility.
+3. Add more experimental comparisons.
+4. Improve training split strategy from random window split to trajectory-level split.
