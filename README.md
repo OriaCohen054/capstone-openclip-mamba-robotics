@@ -25,6 +25,15 @@ The current pipeline is:
    - evaluation metrics
 6. Evaluate trained models using the saved checkpoint and config.
 
+The recommended execution order is:
+
+```text
+filter_data.py
+→ openclip_embed.py
+→ train.py
+→ evaluate.py
+```
+
 ---
 
 ## Repository Structure
@@ -39,8 +48,9 @@ RoboMamba_OpenCLIP/
 │   ├── mamba_model.py
 │   ├── train.py
 │   ├── evaluate.py
-│   ├── trajectory_scanner.py
-│   └── weights_registry.py
+│   ├── weights_registry.py
+│   └── archive/
+│       └── trajectory_scanner.py
 │
 ├── checkpoints/          # ignored by Git
 │   ├── archive/
@@ -100,6 +110,8 @@ SUCCESS / FAILURE
 Important note:  
 The current filtering focuses on successful pick/lift behavior. It does not fully validate the complete place phase.
 
+This file is responsible for dataset preparation and should be executed before training when a new filtered dataset is needed.
+
 ---
 
 ### `src/openclip_embed.py`
@@ -109,6 +121,12 @@ Precomputes OpenCLIP visual embeddings for trajectory images.
 Instead of computing OpenCLIP embeddings during every training epoch, this script computes them once and saves them inside each trajectory folder as `.npy` files.
 
 This significantly speeds up training.
+
+Recommended usage:
+
+```text
+Run this after filtering the trajectories and before training the Mamba model.
+```
 
 ---
 
@@ -121,6 +139,7 @@ It supports:
 - loading trajectories from a filtered CSV
 - using only rows with `Status = SUCCESS`
 - loading precomputed OpenCLIP embeddings from `.npy`
+- optionally computing missing embeddings
 - combining OpenCLIP embeddings with robot state vectors
 - creating temporal windows for Mamba training
 
@@ -169,8 +188,7 @@ Trains the Mamba behavioral cloning model.
 The training script supports:
 
 - training from a filtered CSV
-- optionally running YOLO filtering before training
-- loading precomputed OpenCLIP embeddings
+- loading precomputed OpenCLIP embeddings through the dataset
 - saving checkpoints
 - saving config files
 - saving metrics
@@ -184,6 +202,9 @@ checkpoints/<run_name>/
 ├── config.json
 └── metrics.json
 ```
+
+Recommended architecture note:  
+Filtering the dataset with YOLO should be treated as a separate data-preparation step and should usually be run before training using `src/robotics_data_prep/filter_data.py`.
 
 ---
 
@@ -199,6 +220,15 @@ checkpoints/<run_name>/config.json
 ```
 
 Then it rebuilds the model according to the saved config and evaluates it on the validation split or the full dataset.
+
+Evaluation reports:
+
+```text
+MSE
+MAE
+Per-dimension MAE
+Example predictions
+```
 
 ---
 
@@ -219,22 +249,21 @@ The registry is used to:
 - avoid unnecessary retraining
 - connect the UI to saved checkpoints
 
+The registry uses a configuration hash based on meaningful experiment parameters such as model size, sequence length, learning rate, target type, and feature configuration. Local paths, dates, and run-specific folders are not treated as model-defining parameters.
+
 ---
 
-### `src/trajectory_scanner.py`
+### Archived utility: `src/archive/trajectory_scanner.py`
 
-Scans dataset folders and detects structurally valid trajectory folders.
+This file was used during early development to check whether trajectory folders had the expected basic structure.
 
-A valid trajectory folder contains:
+It is not part of the main training pipeline anymore, because trajectory validation and success filtering are now handled by:
 
 ```text
-obs_dict.pkl
-policy_out.pkl
-images0/
+src/robotics_data_prep/filter_data.py
 ```
 
-This file only checks folder structure.  
-It does not decide whether the robot succeeded in the task.
+The archived scanner only checks folder structure. It does not determine whether a trajectory succeeded or failed.
 
 ---
 
@@ -495,6 +524,22 @@ Training should use precomputed OpenCLIP embeddings when available.
 
 This avoids recomputing OpenCLIP for overlapping windows and makes training significantly faster.
 
+The preferred workflow is:
+
+```text
+Run openclip_embed.py once
+→ save embeddings as .npy files
+→ train using precomputed embeddings
+```
+
+---
+
+### Training vs Evaluation
+
+`train.py` is used to teach the model. It updates model weights and creates a new checkpoint.
+
+`evaluate.py` is used to test an already trained model. It does not update weights. It only loads an existing checkpoint and reports error metrics.
+
 ---
 
 ### Checkpoints
@@ -647,7 +692,9 @@ Raw trajectories
 
 Next planned steps:
 
-1. Update the UI to use `weights_registry.json`.
-2. Add optional sample data for reproducibility.
-3. Add more experimental comparisons.
-4. Improve training split strategy from random window split to trajectory-level split.
+1. Move old utilities that are not part of the main pipeline into `src/archive/`.
+2. Keep YOLO filtering as a separate data-preparation step.
+3. Update the UI to use `weights_registry.json`.
+4. Add optional sample data for reproducibility.
+5. Add more experimental comparisons.
+6. Improve training split strategy from random window split to trajectory-level split.
