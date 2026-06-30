@@ -87,8 +87,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--show_examples",
         type=int,
-        default=3,
-        help="Number of prediction examples to print.",
+        default=5,
+        help="Number of prediction examples to print for review.",
     )
 
     parser.add_argument(
@@ -289,12 +289,147 @@ def build_eval_loader(
     )
 
 
+
+
+def _to_serializable_vector(array_value: np.ndarray) -> list[float]:
+    """Convert a model vector to a JSON-friendly list of floats."""
+    return [float(x) for x in np.asarray(array_value).reshape(-1).tolist()]
+
+
+def _resolve_possible_path(path_value: Any, filtered_csv: Optional[str]) -> Optional[str]:
+    """Resolve a possible image/frame path from a dataset record."""
+    if path_value is None:
+        return None
+    if isinstance(path_value, (list, tuple)):
+        for item in reversed(path_value):
+            resolved = _resolve_possible_path(item, filtered_csv)
+            if resolved:
+                return resolved
+        return None
+    text = str(path_value).strip()
+    if not text or text.lower() in {"none", "nan"}:
+        return None
+    suffixes = (".png", ".jpg", ".jpeg", ".webp")
+    if not text.lower().endswith(suffixes):
+        return None
+    if os.path.isabs(text) and os.path.exists(text):
+        return text
+    candidate_roots = []
+    if filtered_csv:
+        csv_abs = project_path(filtered_csv)
+        candidate_roots.append(os.path.dirname(csv_abs))
+        candidate_roots.append(os.path.dirname(os.path.dirname(csv_abs)))
+    candidate_roots.append(PROJECT_ROOT)
+    for root in candidate_roots:
+        candidate = os.path.abspath(os.path.join(root, text))
+        if os.path.exists(candidate):
+            return candidate
+    return text if os.path.isabs(text) else None
+
+
+def _pick_frame_path_from_record(record: Any, filtered_csv: Optional[str]) -> Optional[str]:
+    """Try to find an image path inside a dataset window/metadata record."""
+    if record is None:
+        return None
+    if isinstance(record, dict):
+        preferred_keys = [
+            "target_frame_path", "frame_path", "image_path", "rgb_path", "camera_path",
+            "target_image", "image", "frame", "images", "frames", "image_paths", "frame_paths",
+        ]
+        for key in preferred_keys:
+            if key in record:
+                resolved = _resolve_possible_path(record.get(key), filtered_csv)
+                if resolved:
+                    return resolved
+        for key, value in record.items():
+            key_text = str(key).lower()
+            if any(token in key_text for token in ("image", "frame", "rgb", "camera")):
+                resolved = _resolve_possible_path(value, filtered_csv)
+                if resolved:
+                    return resolved
+    if isinstance(record, (list, tuple)):
+        for value in reversed(record):
+            resolved = _pick_frame_path_from_record(value, filtered_csv)
+            if resolved:
+                return resolved
+    return None
+
+
+def _extract_record_value(record: Any, names: tuple[str, ...]) -> Optional[Any]:
+    """Extract a semantic metadata value from a flexible record."""
+    if not isinstance(record, dict):
+        return None
+    for name in names:
+        if name in record and record[name] not in {None, "", "None"}:
+            return record[name]
+    lower = {str(k).lower(): v for k, v in record.items()}
+    for name in names:
+        if name.lower() in lower and lower[name.lower()] not in {None, "", "None"}:
+            return lower[name.lower()]
+    return None
+
+
+def _resolve_dataset_record(base_dataset: Any, original_index: int) -> Any:
+    """Best-effort access to the dataset metadata for a validation window."""
+    for attr in ("windows", "samples", "items", "examples", "window_records", "records", "index"):
+        value = getattr(base_dataset, attr, None)
+        if isinstance(value, (list, tuple)) and 0 <= original_index < len(value):
+            return value[original_index]
+        if isinstance(value, dict):
+            if original_index in value:
+                return value[original_index]
+            text_key = str(original_index)
+            if text_key in value:
+                return value[text_key]
+    return None
+
+
+def _example_metadata_from_dataset(dataloader_dataset: Any, relative_index: int, filtered_csv: Optional[str]) -> dict[str, Any]:
+    """Return dataset index and optional frame metadata for a saved prediction example.
+
+    Supports torch Subset used for validation splits and prefers the dataset's
+    explicit get_sample_metadata() method when available.
+    """
+    base_dataset = dataloader_dataset
+    original_index = relative_index
+    subset_indices = getattr(dataloader_dataset, "indices", None)
+    subset_base = getattr(dataloader_dataset, "dataset", None)
+    if subset_indices is not None and subset_base is not None:
+        if 0 <= relative_index < len(subset_indices):
+            original_index = int(subset_indices[relative_index])
+            base_dataset = subset_base
+
+    if hasattr(base_dataset, "get_sample_metadata"):
+        try:
+            metadata = base_dataset.get_sample_metadata(int(original_index))
+            if isinstance(metadata, dict):
+                metadata = dict(metadata)
+                metadata.setdefault("dataset_index", int(original_index))
+                metadata.setdefault("validation_index", int(relative_index))
+                return metadata
+        except Exception as error:
+            print(f"[WARN] Could not read sample metadata for index {original_index}: {error}", flush=True)
+
+    record = _resolve_dataset_record(base_dataset, original_index)
+    frame_path = _pick_frame_path_from_record(record, filtered_csv)
+    trajectory_id = _extract_record_value(record, ("trajectory_id", "traj_id", "trajectory", "traj", "episode", "episode_id", "run"))
+    frame_index = _extract_record_value(record, ("frame_index", "target_frame_index", "frame_id", "t", "target_t", "step", "step_index"))
+
+    return {
+        "dataset_index": int(original_index),
+        "validation_index": int(relative_index),
+        "frame_path": frame_path,
+        "trajectory_id": str(trajectory_id) if trajectory_id is not None else None,
+        "frame_index": int(frame_index) if isinstance(frame_index, (int, np.integer)) or (isinstance(frame_index, str) and frame_index.isdigit()) else frame_index,
+    }
+
 def evaluate_model(
     model: MultimodalMambaBC,
     dataloader: DataLoader,
     device: torch.device,
     max_batches: Optional[int],
     show_examples: int,
+    filtered_csv: Optional[str],
 ) -> Dict[str, Any]:
     """
     Run model evaluation and compute regression metrics.
@@ -312,6 +447,8 @@ def evaluate_model(
 
     per_dim_abs_error_sum = None
     printed_examples = 0
+    available_batches = len(dataloader)
+    expected_batches = min(available_batches, max_batches) if max_batches is not None else available_batches
 
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(dataloader):
@@ -331,6 +468,15 @@ def evaluate_model(
             total_mse += squared_error.mean(dim=1).sum().item()
             total_mae += absolute_error.mean(dim=1).sum().item()
             total_samples += batch_size
+
+            processed_batches = batch_idx + 1
+            running_mse = total_mse / total_samples
+            running_mae = total_mae / total_samples
+            print(
+                f"[EVAL_PROGRESS] Batches {processed_batches}/{expected_batches} | "
+                f"Samples: {total_samples} | MSE: {running_mse:.6f} | MAE: {running_mae:.6f}",
+                flush=True,
+            )
 
             per_dim_batch_sum = absolute_error.sum(dim=0).detach().cpu().numpy()
 
@@ -352,9 +498,28 @@ def evaluate_model(
                     print(f"\nExample {printed_examples + 1}:")
                     print(f"Ground truth action: {targets_np[example_idx]}")
                     print(f"Predicted action:    {predictions_np[example_idx]}")
+                    example_mae = float(np.mean(np.abs(targets_np[example_idx] - predictions_np[example_idx])))
                     print(
                         "MAE:                 "
-                        f"{np.mean(np.abs(targets_np[example_idx] - predictions_np[example_idx])):.6f}"
+                        f"{example_mae:.6f}"
+                    )
+
+                    relative_index = batch_idx * dataloader.batch_size + example_idx
+                    metadata = _example_metadata_from_dataset(
+                        dataloader.dataset,
+                        relative_index=int(relative_index),
+                        filtered_csv=filtered_csv,
+                    )
+                    structured_example = {
+                        "example": printed_examples + 1,
+                        "ground_truth": _to_serializable_vector(targets_np[example_idx]),
+                        "prediction": _to_serializable_vector(predictions_np[example_idx]),
+                        "mae": example_mae,
+                        **metadata,
+                    }
+                    print(
+                        "[EVAL_EXAMPLE_JSON] " + json.dumps(structured_example, ensure_ascii=False),
+                        flush=True,
                     )
 
                     printed_examples += 1
@@ -370,6 +535,8 @@ def evaluate_model(
         if per_dim_abs_error_sum is not None
         else None
     )
+
+    print(f"[EVAL_EXAMPLES_SAVED] {printed_examples}", flush=True)
 
     return {
         "num_samples": total_samples,
@@ -431,6 +598,7 @@ def main() -> None:
         device=device,
         max_batches=args.max_batches,
         show_examples=args.show_examples,
+        filtered_csv=args.filtered_csv,
     )
 
     print("\nEvaluation complete.")

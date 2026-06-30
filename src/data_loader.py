@@ -573,6 +573,49 @@ class MultiModalRoboticDataset(Dataset):
         print(f"Embeddings computed online: {self.num_online_embedding_trajectories}")
         print(f"Missing embedding trajectories: {self.num_missing_embedding_trajectories}")
 
+
+    def get_sample_metadata(self, idx: int) -> Dict[str, Any]:
+        """
+        Return metadata for one dataset window without changing __getitem__ output.
+
+        This is used by evaluation/results screens to connect a saved prediction
+        example back to its trajectory and image frame.
+        """
+        traj_path, start_idx, target_idx = self.samples[idx]
+        traj = self.traj_data[traj_path]
+
+        image_files = traj.get("image_files", [])
+        images_dir = traj.get("images_dir", "")
+
+        target_image_name = None
+        target_frame_path = None
+
+        if 0 <= target_idx < len(image_files):
+            target_image_name = image_files[target_idx]
+            target_frame_path = os.path.abspath(
+                os.path.join(images_dir, target_image_name)
+            )
+
+        window_image_files = image_files[start_idx : start_idx + self.seq_length]
+        window_frame_paths = [
+            os.path.abspath(os.path.join(images_dir, image_name))
+            for image_name in window_image_files
+        ]
+
+        return {
+            "dataset_index": int(idx),
+            "trajectory_path": os.path.abspath(traj_path),
+            "trajectory_id": os.path.basename(os.path.abspath(traj_path)),
+            "images_dir": os.path.abspath(images_dir),
+            "start_idx": int(start_idx),
+            "target_idx": int(target_idx),
+            "frame_index": int(target_idx),
+            "target_image_name": target_image_name,
+            "frame_path": target_frame_path,
+            "target_frame_path": target_frame_path,
+            "window_frame_paths": window_frame_paths,
+        }
+
     def __len__(self) -> int:
         """
         Return the number of training samples/windows.

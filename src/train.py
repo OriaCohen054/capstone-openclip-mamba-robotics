@@ -299,6 +299,13 @@ def parse_args() -> argparse.Namespace:
         help="Train even if a checkpoint with the same config already exists.",
     )
 
+    parser.add_argument(
+        "--resume_checkpoint",
+        type=str,
+        default=None,
+        help="Path to last_checkpoint.pth for resuming training from the last completed epoch.",
+    )
+
     return parser.parse_args()
 
 
@@ -568,7 +575,9 @@ def train_one_run(args: argparse.Namespace) -> None:
 
     existing_item = find_existing_weights_by_config(config)
 
-    if existing_item is not None and not args.force_train:
+    # When resuming, we intentionally continue the same run even if a matching
+    # best model already exists in the registry.
+    if existing_item is not None and not args.force_train and not args.resume_checkpoint:
         print("\nA checkpoint with the same configuration already exists.")
         print(f"Run name: {existing_item.get('run_name')}")
         print(f"Weights: {existing_item.get('weights_path')}")
@@ -576,9 +585,14 @@ def train_one_run(args: argparse.Namespace) -> None:
         return
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = args.run_name or (
-        f"run_{timestamp}_k{args.seq_length}_d{args.d_model}_lr{args.learning_rate}"
-    )
+
+    if args.resume_checkpoint and not args.run_name:
+        resume_path_for_name = project_path(args.resume_checkpoint)
+        run_name = os.path.basename(os.path.dirname(resume_path_for_name))
+    else:
+        run_name = args.run_name or (
+            f"run_{timestamp}_k{args.seq_length}_d{args.d_model}_lr{args.learning_rate}"
+        )
 
     paths = create_run_paths(run_name)
 
@@ -617,6 +631,30 @@ def train_one_run(args: argparse.Namespace) -> None:
     best_epoch = 0
     patience_counter = 0
     history = []
+    start_epoch = 1
+
+    if args.resume_checkpoint:
+        resume_path = project_path(args.resume_checkpoint)
+        if not os.path.exists(resume_path):
+            raise FileNotFoundError(f"Resume checkpoint was not found: {resume_path}")
+
+        print(f"\nResuming training from: {resume_path}")
+        resume_state = torch.load(resume_path, map_location=device, weights_only=False)
+        model.load_state_dict(resume_state["model_state_dict"])
+        optimizer.load_state_dict(resume_state["optimizer_state_dict"])
+
+        if "scaler_state_dict" in resume_state and resume_state["scaler_state_dict"] is not None:
+            try:
+                scaler.load_state_dict(resume_state["scaler_state_dict"])
+            except Exception as exc:
+                print(f"Warning: could not restore AMP scaler state: {exc}")
+
+        best_val_loss = float(resume_state.get("best_val_loss", best_val_loss))
+        best_epoch = int(resume_state.get("best_epoch", best_epoch))
+        patience_counter = int(resume_state.get("patience_counter", patience_counter))
+        history = list(resume_state.get("history", history))
+        start_epoch = int(resume_state.get("epoch", 0)) + 1
+        print(f"Continuing from epoch {start_epoch}/{args.max_epochs}")
 
     print("\nStarting training...")
     print(f"Train windows: {train_size}")
@@ -629,7 +667,7 @@ def train_one_run(args: argparse.Namespace) -> None:
         log_file.write(f"Config: {config}\n\n")
         log_file.write("epoch,train_loss,val_loss,status\n")
 
-        for epoch in range(1, args.max_epochs + 1):
+        for epoch in range(start_epoch, args.max_epochs + 1):
             model.train()
             total_train_loss = 0.0
 
@@ -731,11 +769,35 @@ def train_one_run(args: argparse.Namespace) -> None:
                 }
             )
 
+            # Save a resume checkpoint after every completed epoch.
+            # This is different from model.pth, which stores the best model only.
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
+                    "best_val_loss": best_val_loss,
+                    "best_epoch": best_epoch,
+                    "patience_counter": patience_counter,
+                    "history": history,
+                    "config": config,
+                    "run_name": run_name,
+                },
+                os.path.join(paths["run_dir"], "last_checkpoint.pth"),
+            )
+
             print(
                 f"Epoch {epoch}/{args.max_epochs} | "
                 f"Train Loss: {avg_train_loss:.6f} | "
                 f"Val Loss: {avg_val_loss:.6f} | "
                 f"{status}"
+            )
+            print(
+                f"[TRAIN_PROGRESS] Epoch {epoch}/{args.max_epochs} | "
+                f"Patience: {patience_counter}/{args.patience} | "
+                f"Best epoch: {best_epoch} | Best val loss: {best_val_loss:.6f}",
+                flush=True,
             )
 
             log_file.write(
