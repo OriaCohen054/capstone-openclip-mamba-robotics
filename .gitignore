@@ -10,6 +10,7 @@ __pycache__/
 venv/
 env/
 .env
+.streamlit/secrets.toml
 
 
 # =========================
@@ -17,6 +18,8 @@ env/
 # =========================
 data/
 datasets/
+raw_data/
+scripted_raw/
 
 *.zip
 *.tar
@@ -34,6 +37,7 @@ checkpoints/
 *.ckpt
 *.npy
 *.npz
+*.pkl
 
 
 # =========================
@@ -59,3 +63,4 @@ src/experiments/
 .DS_Store
 .vscode/
 .idea/
+Thumbs.db
