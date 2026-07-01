@@ -8,18 +8,20 @@
 
 ## 1. Project Overview
 
-This project implements a multimodal robotic imitation-learning pipeline for predicting the next robotic action from visual trajectory sequences and robot-state data.
+This project implements an offline multimodal robotic imitation-learning pipeline for predicting the next robotic action from visual trajectory sequences and robot-state data.
 
 The system combines:
 
-- **YOLO-based trajectory filtering** for selecting reliable robotic demonstrations.
+- **YOLO-based trajectory filtering** for selecting usable robotic demonstrations and reducing visually invalid/silent-failure trajectories.
 - **OpenCLIP visual embeddings** for converting image frames into compact 512-dimensional visual feature vectors.
 - **Robot state vectors** for adding non-visual robotic information.
 - **Mamba sequence modeling** for learning temporal dependencies across consecutive timesteps.
-- **Behavioral Cloning** for predicting the next continuous robot action vector.
+- **Behavioral Cloning** for predicting the next continuous robotic action vector.
 - **Streamlit UI** for operating the full pipeline end-to-end.
 
-The final model receives a fixed-length sequence of multimodal features and predicts the next 7-dimensional robotic action.
+The implemented model receives a fixed-length sequence of multimodal features and predicts the next 7-dimensional robotic action.
+
+> Important scope note: this project focuses on **offline next-action prediction from recorded robotic trajectories**. It does not deploy the policy on a physical robot and does not perform real-time closed-loop robot control.
 
 ---
 
@@ -33,7 +35,53 @@ The poster below summarizes the project motivation, solution, architecture, and 
 
 ---
 
-## 3. High-Level Pipeline
+## 3. Dataset
+
+This project uses BridgeData-style robotic manipulation trajectories.
+
+The dataset itself is **not included in this repository** because of its size.
+
+Dataset source:
+
+- BridgeData website: <https://rail-berkeley.github.io/bridgedata/>
+- Bridge release data index: <https://rail.eecs.berkeley.edu/datasets/bridge_release/data/>
+
+The project experiments were developed using the smaller scripted BridgeData release:
+
+```text
+scripted_6_18.zip  (~30GB)
+```
+
+After extracting the dataset, the UI expects a raw trajectory folder such as:
+
+```text
+/path/to/scripted_6_18/scripted_raw
+```
+
+The default local development path used in the UI code is:
+
+```text
+/home/linuxu/Downloads/scripted_6_18/scripted_raw
+```
+
+This path can be changed from the UI by choosing another dataset folder.
+
+### Dataset Scope
+
+The data comes from robotic manipulation trajectories. In this implementation, the pipeline focuses on:
+
+- filtering usable successful trajectories,
+- extracting OpenCLIP visual embeddings,
+- synchronizing visual features with robot-state/action data,
+- training a Mamba-based behavioral-cloning model for **next-action prediction**.
+
+The project should not be described as a complete deployed pick-and-place robot controller. A safer description is:
+
+> The system learns next-action prediction from recorded robotic manipulation trajectories using visual and robot-state context.
+
+---
+
+## 4. High-Level Pipeline
 
 ```text
 Raw robotic trajectories
@@ -51,7 +99,7 @@ Multimodal data loading:
         ↓
 Fixed-length temporal windows
         ↓
-Mamba behavioral cloning training
+Mamba behavioral-cloning training
         ↓
 Checkpoint + config + metrics
         ↓
@@ -60,7 +108,7 @@ Evaluation
 Streamlit Results visualization
 ```
 
-Current verified input and target format:
+Current input and target format used by the project:
 
 ```text
 Input shape per sample:  [seq_length, 519]
@@ -70,9 +118,18 @@ Target shape per sample: [7]
 Target = next robotic action vector
 ```
 
+Example configuration used during development:
+
+```text
+seq_length = 10
+d_model    = 128
+batch_size = 16
+learning_rate = 0.001
+```
+
 ---
 
-## 4. Main Technologies
+## 5. Main Technologies
 
 - Python
 - PyTorch
@@ -88,10 +145,12 @@ Target = next robotic action vector
 
 ---
 
-## 5. Repository Structure
+## 6. Repository Structure
+
+The repository is organized around source code, UI code, and project documentation.
 
 ```text
-RoboMamba_OpenCLIP/
+capstone-openclip-mamba-robotics/
 ├── src/
 │   ├── robotics_data_prep/
 │   │   └── filter_data.py
@@ -100,7 +159,6 @@ RoboMamba_OpenCLIP/
 │   ├── mamba_model.py
 │   ├── train.py
 │   ├── evaluate.py
-│   ├── trajectory_scanner.py
 │   └── weights_registry.py
 │
 ├── ui/
@@ -112,7 +170,12 @@ RoboMamba_OpenCLIP/
 │   └── assets/
 │
 ├── docs/
-│   ├── submissions/
+│   ├── topic/
+│   ├── literature-review/
+│   ├── requirements/
+│   ├── sdd/
+│   ├── stp/
+│   ├── std/
 │   ├── final/
 │   ├── poster/
 │   └── media/
@@ -122,21 +185,36 @@ RoboMamba_OpenCLIP/
 └── README.md
 ```
 
+### Documentation Folder Notes
+
+The `docs/` folder is intended to contain the project submission documents, poster, final summary, STD results, and optional media.
+
+Suggested final submission structure:
+
+```text
+docs/
+├── topic/                 # Project topic submission
+├── literature-review/     # Literature review submission
+├── requirements/          # Requirements document
+├── sdd/                   # Software Design Document
+├── stp/                   # Software Test Plan
+├── std/                   # Software Test Description / test results
+├── final/                 # Final summary document
+├── poster/                # Project poster PDF + PNG preview
+└── media/                 # Optional screenshots / demo links / images
+```
+
 Runtime folders such as `data/`, `checkpoints/`, `outputs/`, `runs/`, `logs/`, and `wandb/` are intentionally ignored by Git because they may contain large datasets, trained weights, generated embeddings, logs, or temporary runtime files.
 
 ---
 
-## 6. Main Source Files
+## 7. Main Source Files
 
 ### `src/robotics_data_prep/filter_data.py`
 
 Filters raw robotic trajectories and creates a filtered dataset CSV.
 
-The filtering stage uses:
-
-- robot-state / gripper-related signals
-- end-effector or motion-related checks
-- YOLO-based visual validation
+The filtering stage uses YOLO-based visual validation together with trajectory/state checks to identify usable trajectories.
 
 Expected output:
 
@@ -152,7 +230,7 @@ FAILURE
 SKIPPED
 ```
 
-Important note: the current filtering focuses mainly on reliable pick/lift behavior and should not be described as complete real-world physical task validation for all possible manipulation phases.
+Important note: the filtering stage helps curate reliable training data, but it should not be described as complete real-world task execution validation.
 
 ---
 
@@ -168,7 +246,7 @@ Expected embedding file:
 openclip_vitb32_laion2b_s34b_b79k_embeddings.npy
 ```
 
-This design significantly reduces training time because the Mamba model can load precomputed visual features directly.
+This design reduces training time because the Mamba model can load precomputed visual features directly.
 
 ---
 
@@ -178,13 +256,13 @@ Loads the filtered robotic dataset and prepares training/evaluation samples.
 
 Responsibilities:
 
-- read `final_mamba_dataset.csv`
-- filter rows by status, usually `SUCCESS`
-- load precomputed OpenCLIP embeddings
-- load robot trajectory files such as `obs_dict.pkl` and `policy_out.pkl`
-- combine visual embeddings with robot state vectors
-- construct fixed-length temporal windows
-- pair each input window with the correct target action
+- read `final_mamba_dataset.csv`,
+- filter rows by status, usually `SUCCESS`,
+- load precomputed OpenCLIP embeddings,
+- load robot trajectory files such as `obs_dict.pkl` and `policy_out.pkl`,
+- combine visual embeddings with robot state vectors,
+- construct fixed-length temporal windows,
+- pair each input window with the correct target action.
 
 Current default representation:
 
@@ -200,7 +278,7 @@ seq_length           = 10
 
 ### `src/mamba_model.py`
 
-Defines the Mamba-based behavioral cloning model.
+Defines the Mamba-based behavioral-cloning model.
 
 The model receives a sequence of multimodal vectors and predicts the next robotic action.
 
@@ -208,102 +286,75 @@ Main configurable parameters include:
 
 ```text
 d_model
-d_state
-d_conv
-expand
-num_layers
-dropout
-action_dim
+num_layers / Mamba depth-related settings
+output_dim = 7
 ```
+
+The exact architecture is defined in the source file.
 
 ---
 
 ### `src/train.py`
 
-Trains the Mamba behavioral cloning model.
+Runs Mamba training.
 
-The script supports:
+Responsibilities:
 
-- loading a filtered CSV
-- loading precomputed OpenCLIP embeddings
-- filtering by status, usually `SUCCESS`
-- training with configurable hyperparameters
-- early stopping
-- checkpoint saving
-- metric saving
-- resume training from an interrupted checkpoint
-- duplicate run protection using configuration matching
+- parse training arguments,
+- load the dataset through `data_loader.py`,
+- create the Mamba model,
+- train the behavioral-cloning model,
+- compute training and validation losses,
+- apply early stopping,
+- save checkpoints,
+- save configuration and training metadata.
 
-Typical output folder:
+Typical checkpoint output:
 
 ```text
 checkpoints/<run_name>/
 ├── model.pth
-├── last_checkpoint.pth
 ├── config.json
-└── metrics.json
+├── metrics.json
+└── last_checkpoint.pth
 ```
 
 ---
 
 ### `src/evaluate.py`
 
-Evaluates a trained checkpoint.
+Runs evaluation for a selected trained checkpoint.
 
-The script loads a saved checkpoint and its configuration, rebuilds the Mamba model, evaluates predictions, computes metrics, and prints/saves prediction examples for the UI.
+Responsibilities:
 
-Common evaluation metrics:
-
-```text
-MSE
-MAE
-Per-dimension MAE
-Evaluated sample count
-Prediction examples
-```
-
----
-
-### `src/trajectory_scanner.py`
-
-Scans dataset folders and detects structurally valid trajectory folders.
-
-A valid trajectory folder is expected to include files such as:
-
-```text
-obs_dict.pkl
-policy_out.pkl
-image frames / image folders
-```
-
-This file validates folder structure. It does not determine whether a robotic task succeeded.
+- load checkpoint configuration,
+- rebuild the model architecture,
+- load `model.pth`,
+- run evaluation on the selected dataset,
+- compute metrics such as MSE and MAE,
+- print/save prediction examples for the UI Results screen.
 
 ---
 
 ### `src/weights_registry.py`
 
-Handles checkpoint metadata and helps detect previously trained configurations.
+Provides checkpoint/weights registration or lookup utilities used by the training workflow.
 
-The registry is used to:
-
-- record training runs
-- compare run configurations
-- avoid unnecessary retraining when a matching trained checkpoint already exists
-- help connect the UI to saved model artifacts
+The project also uses UI-side checkpoint discovery in `ui/pipeline_services.py` for displaying available checkpoint folders in the Streamlit interface.
 
 ---
 
-## 7. Streamlit UI
+## 8. Streamlit UI
 
-The project includes a Streamlit user interface for running the full pipeline.
+The project includes a Streamlit interface for running the full pipeline without manually typing every command.
 
-Start the UI:
+Run the UI with:
 
 ```bash
 streamlit run ui/app.py
 ```
 
-The UI stages are:
+The UI is organized as:
 
 ```text
 Dataset → YOLO → OpenCLIP → Model → Training → Evaluation → Results
@@ -311,17 +362,19 @@ Dataset → YOLO → OpenCLIP → Model → Training → Evaluation → Results
 
 ### `ui/app.py`
 
-Main UI controller.
+Main Streamlit application.
 
 Responsibilities:
 
-- manage the active pipeline stage
-- store UI state using `st.session_state`
-- handle page navigation
-- start long-running backend processes
-- update stage status
-- display Dataset, YOLO, OpenCLIP, Model, Training, Evaluation, and Results screens
-- connect UI actions to backend commands
+- initialize and restore UI state,
+- manage the current pipeline stage,
+- render each page,
+- handle user actions,
+- launch backend processes,
+- update stage statuses,
+- display evaluation results.
+
+---
 
 ### `ui/pipeline_services.py`
 
@@ -329,76 +382,57 @@ Service layer between the UI and backend scripts.
 
 Responsibilities:
 
-- validate dataset folders
-- detect filtered CSV files
-- summarize CSV contents
-- count OpenCLIP embeddings
-- discover checkpoints
-- build command-line calls for YOLO, OpenCLIP, training, and evaluation
-- parse logs into progress values, metrics, and prediction examples
+- validate dataset folders,
+- detect `final_mamba_dataset.csv`,
+- summarize CSV status values,
+- count OpenCLIP embedding files,
+- discover checkpoints,
+- build YOLO/OpenCLIP/training/evaluation CLI commands,
+- parse log files into progress values, metrics, and prediction examples.
 
-Important constants are defined here, for example:
-
-```text
-DEFAULT_DATASET_ROOT
-DEFAULT_YOLO_WEIGHTS
-DEFAULT_FILTER_CSV_NAME
-EMBEDDING_FILENAME
-CHECKPOINTS_DIR
-```
+---
 
 ### `ui/process_runner.py`
 
-Runs long backend processes safely.
+Runs long backend processes from the UI.
 
 Responsibilities:
 
-- launch subprocesses
-- save process PID
-- save log paths
-- detect whether a process is still running
-- send stop signals
-- read log tails
-- persist UI runtime state
+- start subprocesses,
+- save PID and process metadata,
+- write logs to `outputs/ui_runs/`,
+- stop processes safely using Linux signals,
+- restore current-process state after reopening the UI.
 
-Runtime state is saved under:
-
-```text
-outputs/ui_runtime/
-```
-
-UI logs are saved under:
-
-```text
-outputs/ui_runs/
-```
+---
 
 ### `ui/components.py`
 
 Reusable UI components.
 
-Includes:
+Examples:
 
-- project brand header
-- pipeline stepper
-- stage headers
-- metric cards
-- progress bars
-- log boxes
-- source/config cards
-- Plotly charts
-
-### `ui/ui_styles.py`
-
-CSS styling and layout rules for the Streamlit UI.
-
-It controls the visual consistency of cards, buttons, graphs, logs, tables, and the Results screen.
+- project brand/header,
+- stage stepper,
+- metric cards,
+- progress bars,
+- log cards,
+- Plotly charts,
+- configuration blocks.
 
 ---
 
-## 8. Installation
+### `ui/ui_styles.py`
 
-Install dependencies:
+Central CSS/theme file for the Streamlit UI.
+
+It keeps the UI visually consistent across all stages.
+
+---
+
+## 9. Installation
+
+Install dependencies from `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
@@ -408,128 +442,107 @@ Recommended environment:
 
 ```text
 Python 3.10+
-CUDA-enabled GPU
+Linux
+CUDA-enabled NVIDIA GPU
 PyTorch with CUDA support
-Conda environment recommended
 ```
 
-The project was developed in a Conda environment named:
-
-```text
-mamba_proj
-```
+The current requirements include CUDA-specific packages and Mamba/causal-conv wheels. If installation fails on another machine, the CUDA, PyTorch, and Python versions should be checked carefully.
 
 ---
 
-## 9. Required External Artifacts
+## 10. Required External Artifacts
 
-Large artifacts are not stored in Git.
+The repository does not include large datasets, generated embeddings, or trained checkpoints.
 
-Before running the full pipeline, make sure the following exist locally:
+Before running the full pipeline, prepare the following locally:
 
 ### Dataset
 
-A BridgeData-style raw trajectory folder, for example:
+Download and extract the BridgeData scripted dataset:
 
 ```text
-/home/linuxu/Downloads/scripted_6_18/scripted_raw
+scripted_6_18.zip (~30GB)
+```
+
+Expected selected folder:
+
+```text
+/path/to/scripted_6_18/scripted_raw
 ```
 
 ### YOLO Weights
 
-The UI expects the fixed YOLO weights file at:
+The UI expects YOLO weights at:
 
 ```text
 src/robotics_data_prep/best.pt
 ```
 
-If this file is not committed to Git, place it manually at the expected path or update:
+Because `.pt` files are ignored by Git, this file should be copied manually into the expected location when setting up the project.
 
-```text
-DEFAULT_YOLO_WEIGHTS
-```
+### Optional Existing Checkpoints
 
-inside:
-
-```text
-ui/pipeline_services.py
-```
-
-### Checkpoints
-
-Training creates checkpoints under:
+If using an already trained model, place checkpoint folders under:
 
 ```text
 checkpoints/<run_name>/
 ```
 
-These folders are ignored by Git and should be stored locally or externally.
+Each completed checkpoint folder should include at least:
+
+```text
+model.pth
+config.json
+metrics.json
+```
 
 ---
 
-## 10. Step-by-Step CLI Usage
+## 11. Running the Pipeline from the UI
 
-The Streamlit UI is the preferred way to run the project, but the pipeline can also be executed from the command line.
+Start the UI:
 
-### Step 1: Filter trajectories
+```bash
+streamlit run ui/app.py
+```
+
+Then follow the stages:
+
+1. Select dataset folder.
+2. Reuse or generate `final_mamba_dataset.csv` with YOLO filtering.
+3. Reuse, resume, or recompute OpenCLIP embeddings.
+4. Select an existing checkpoint or prepare a new training run.
+5. Train or evaluate the selected model.
+6. View metrics, charts, prediction examples, and logs in Results.
+
+---
+
+## 12. Running from Command Line
+
+### YOLO Filtering
 
 ```bash
 python src/robotics_data_prep/filter_data.py \
-  --data_dir /home/linuxu/Downloads/scripted_6_18/scripted_raw \
+  --data_dir /path/to/scripted_6_18/scripted_raw \
   --weights src/robotics_data_prep/best.pt \
   --output final_mamba_dataset.csv
 ```
 
-Expected output:
-
-```text
-/home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv
-```
-
-Only rows with:
-
-```text
-Status = SUCCESS
-```
-
-are used for the current training configuration.
-
----
-
-### Step 2: Precompute OpenCLIP embeddings
+### OpenCLIP Embedding Generation
 
 ```bash
 python src/openclip_embed.py \
-  --csv_path /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
+  --csv_path /path/to/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
   --status_filter SUCCESS \
   --batch_size 32
 ```
 
-To recompute embeddings:
-
-```bash
-python src/openclip_embed.py \
-  --csv_path /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
-  --status_filter SUCCESS \
-  --batch_size 32 \
-  --overwrite
-```
-
-Expected embedding file inside successful trajectory folders:
-
-```text
-openclip_vitb32_laion2b_s34b_b79k_embeddings.npy
-```
-
----
-
-### Step 3: Train the Mamba model
-
-Example training run:
+### Training
 
 ```bash
 python src/train.py \
-  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
+  --filtered_csv /path/to/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
   --status_filter SUCCESS \
   --seq_length 10 \
   --d_model 128 \
@@ -537,200 +550,54 @@ python src/train.py \
   --learning_rate 0.001 \
   --max_epochs 20 \
   --patience 5 \
-  --run_name mamba_k10_d128_lr0001_pick_success_v1 \
-  --force_train
+  --run_name mamba_k10_d128_lr0001_pick_success_v1
 ```
 
-Sanity-check training run:
-
-```bash
-python src/train.py \
-  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
-  --status_filter SUCCESS \
-  --seq_length 10 \
-  --d_model 128 \
-  --batch_size 4 \
-  --learning_rate 0.001 \
-  --max_epochs 1 \
-  --patience 1 \
-  --run_name test_pipeline_precomputed \
-  --force_train
-```
-
----
-
-### Step 4: Evaluate a trained checkpoint
-
-Current UI evaluation command format:
+### Evaluation
 
 ```bash
 python src/evaluate.py \
   --checkpoint_dir checkpoints/<run_name> \
-  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
+  --filtered_csv /path/to/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
   --status_filter SUCCESS \
-  --show_examples 5
-```
-
-Quick evaluation on a small number of batches, if supported by the local `evaluate.py`:
-
-```bash
-python src/evaluate.py \
-  --checkpoint_dir checkpoints/<run_name> \
-  --filtered_csv /home/linuxu/Downloads/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
-  --status_filter SUCCESS \
-  --max_batches 10 \
   --show_examples 5
 ```
 
 ---
 
-## 11. Current Verified Configuration
+## 13. Evaluation Metrics
 
-The current working configuration used during development:
+The evaluation stage reports quantitative and qualitative results.
 
-```json
-{
-  "seq_length": 10,
-  "action_delay": 0,
-  "target_type": "action_at_window_end",
-  "input_dim": 519,
-  "visual_embedding_dim": 512,
-  "robot_state_dim": 7,
-  "feature_fusion": "openclip_plus_state_concat",
-  "state_source": "state",
-  "use_robot_state": true,
-  "clip_model_name": "ViT-B-32",
-  "clip_pretrained": "laion2b_s34b_b79k",
-  "freeze_clip": true,
-  "d_model": 128,
-  "d_state": 16,
-  "d_conv": 4,
-  "expand": 2,
-  "num_layers": 1,
-  "dropout": 0.0,
-  "action_dim": 7,
-  "batch_size": 16,
-  "learning_rate": 0.001,
-  "max_epochs": 20,
-  "patience": 5,
-  "optimizer": "Adam",
-  "loss_function": "MSELoss",
-  "train_split": 0.8,
-  "random_seed": 42
-}
+Main metrics:
+
+```text
+MSE  - Mean Squared Error
+MAE  - Mean Absolute Error
+Per-dimension MAE
+Number of evaluated samples
+Saved prediction examples
 ```
+
+The Results screen visualizes:
+
+- overall MAE/MSE,
+- per-dimension MAE,
+- ground-truth action vs predicted action,
+- prediction examples,
+- action comparison table,
+- evaluation log.
 
 ---
 
-## 12. Verified Development Results
+## 14. Generated Files Not Stored in Git
 
-A verified development run used:
-
-```text
-Successful trajectories: 4172
-Training windows: 166718
-Input shape: [10, 519]
-Target shape: [7]
-Embeddings loaded from .npy: 4172
-Embeddings computed online: 0
-Missing embedding trajectories: 0
-```
-
-Example longer run:
-
-```text
-Run name: mamba_k10_d128_lr0001_pick_success_v1
-Best epoch: 9
-Best validation loss: 0.004267
-
-Evaluation:
-Evaluated samples: 33344
-MSE: 0.004267
-MAE: 0.019006
-Per-dimension MAE: [0.0062 0.0079 0.0111 0.0065 0.0072 0.034 0.0602]
-```
-
-These values document a verified development run and should be updated if a new final run is selected for the final submission.
-
----
-
-## 13. Project Documentation
-
-Suggested documentation folder structure:
-
-```text
-docs/
-├── submissions/
-│   ├── project_topic.pdf
-│   ├── requirements.pdf
-│   ├── sdd.pdf
-│   └── stp.pdf
-│
-├── final/
-│   ├── final_summary.md
-│   └── std_results.md
-│
-├── poster/
-│   ├── robomamba_poster.pdf
-│   └── robomamba_poster.png
-│
-└── media/
-    ├── screenshots/
-    └── demo/
-```
-
-The final submission should include:
-
-- all previous submission documents
-- source code
-- updated README
-- final summary document
-- STD system test results
-- poster
-- demo video link or demo video file, depending on file size
-
----
-
-## 14. Poster and Media
-
-The poster is stored in both PDF and PNG format:
-
-```text
-docs/poster/robomamba_poster.pdf
-docs/poster/robomamba_poster.png
-```
-
-The PNG version is displayed directly in this README, while the PDF version is kept for full-quality viewing and submission.
-
-Recommended screenshots folder, if UI screenshots are added later:
-
-```text
-docs/media/screenshots/
-```
-
-Recommended screenshots:
-
-```text
-01_dataset.png
-02_yolo.png
-03_openclip.png
-04_model.png
-05_training.png
-06_evaluation.png
-07_results.png
-```
-
-A demo video can be added later. If the video is small, it can be stored under `docs/media/demo/`. If it is large, it is better to upload it externally and place the link in `docs/final/final_summary.md`.
-
----
-
-## 15. Important Git Notes
-
-The following files and folders should not be committed:
+The following files and folders are generated during development or execution and are intentionally ignored:
 
 ```text
 data/
 datasets/
+raw_data/
 scripted_raw/
 checkpoints/
 outputs/
@@ -744,68 +611,83 @@ wandb/
 *.npz
 *.pkl
 *.log
-.streamlit/
 ```
 
-This prevents large datasets, generated embeddings, model weights, logs, and local UI settings from being committed to Git.
-
-If a generated file was already tracked by Git, remove it from Git tracking without deleting it locally:
-
-```bash
-git rm --cached <file_or_folder>
-```
-
-Example:
-
-```bash
-git rm -r --cached checkpoints outputs data
-```
+This keeps the repository lightweight and prevents large datasets, model weights, generated embeddings, and runtime logs from being committed.
 
 ---
 
-## 16. Known Limitations
+## 15. Current Implementation Status
 
-- The system is an offline dataset-based imitation-learning pipeline.
-- It does not control a physical robot in real time.
-- It does not fine-tune OpenCLIP.
-- It does not train YOLO from scratch.
-- The YOLO filtering stage focuses mainly on successful pick/lift behavior.
-- Full real-robot deployment is outside the current project scope.
-- Advanced checkpoint integrity validation is limited; the UI checks available checkpoint files and metadata, but does not deeply validate every possible architecture mismatch.
-- Current evaluation should be interpreted together with per-dimension errors and prediction examples, not only global MAE/MSE.
+Implemented:
+
+- Dataset folder validation.
+- Existing filtered CSV detection and reuse.
+- YOLO-based filtering integration.
+- OpenCLIP embedding generation, cache detection, reuse, resume, and recompute.
+- Multimodal sequence loading with visual embeddings and robot-state vectors.
+- Mamba-based behavioral cloning model.
+- Training with configurable hyperparameters.
+- Checkpoint discovery and selection for evaluation.
+- Evaluation with MAE/MSE metrics.
+- Prediction examples for qualitative review.
+- Streamlit Results visualization.
+- Basic process state persistence for long-running stages.
+
+Out of scope / not implemented as full system functionality:
+
+- Real robot deployment.
+- Real-time closed-loop robot control.
+- Training YOLO from scratch.
+- Fine-tuning OpenCLIP.
+- Full BridgeData benchmark evaluation across all tasks.
+- Advanced checkpoint compatibility validation across every possible model architecture change.
+- Full comparison against RNN/LSTM/Transformer baselines.
 
 ---
 
-## 17. Suggested Future Work
+## 16. Final Submission Notes
 
-Possible future improvements:
+The final submission is expected to include:
 
-- trajectory-level train/validation split instead of random-window split
-- additional sequence lengths such as `seq_length = 20`
-- larger model dimension such as `d_model = 256`
-- comparison with LSTM / Transformer baselines
-- improved place-phase validation
-- richer prediction-example saving with exact frame paths
-- support for external artifact download instructions
-- optional small sample dataset for reproducibility
-- real robot deployment or closed-loop control experiments
+- GitHub repository link,
+- all previous submission documents,
+- project code,
+- final summary document,
+- STD/system test results,
+- poster,
+- optional screenshots or demo video link.
 
----
-
-## 18. Project Status
-
-The project currently includes a working end-to-end pipeline:
+Suggested final summary location:
 
 ```text
-Raw trajectories
-→ YOLO/gripper filtering
-→ SUCCESS CSV
-→ OpenCLIP precomputed embeddings
-→ multimodal sequence construction
-→ Mamba behavioral cloning training
-→ checkpoint/config/metrics saving
-→ evaluation
-→ Streamlit UI results visualization
+docs/final/final_summary.md
 ```
 
-The system is intended as an academic final project prototype for multimodal robotic behavioral cloning using OpenCLIP and Mamba.
+Suggested STD results location:
+
+```text
+docs/std/STD_results.md
+```
+
+Optional demo media can be placed under:
+
+```text
+docs/media/
+```
+
+If the demo video is large, it is recommended to upload it externally and include a link in the final summary instead of committing the video file to Git.
+
+---
+
+## 17. Notes for Reproducibility
+
+To reproduce the pipeline, the user should provide:
+
+1. The extracted BridgeData scripted dataset folder.
+2. The YOLO `best.pt` weights file.
+3. Python dependencies from `requirements.txt`.
+4. CUDA-compatible PyTorch and Mamba installation.
+5. Optional pretrained checkpoints, if evaluation should be run without retraining.
+
+Large artifacts are intentionally excluded from Git and should be stored locally or externally.
