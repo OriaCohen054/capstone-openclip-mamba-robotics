@@ -23,7 +23,17 @@ The final model receives a fixed-length sequence of multimodal features and pred
 
 ---
 
-## 2. High-Level Pipeline
+## 2. Project Poster
+
+The poster below summarizes the project motivation, solution, architecture, and main engineering challenges.
+
+[View full poster as PDF](docs/poster/robomamba_poster.pdf)
+
+![RoboMamba Project Poster](docs/poster/robomamba_poster.png)
+
+---
+
+## 3. High-Level Pipeline
 
 ```text
 Raw robotic trajectories
@@ -62,7 +72,7 @@ Target = next robotic action vector
 
 ---
 
-## 3. Main Technologies
+## 4. Main Technologies
 
 - Python
 - PyTorch
@@ -78,7 +88,7 @@ Target = next robotic action vector
 
 ---
 
-## 4. Repository Structure
+## 5. Repository Structure
 
 ```text
 RoboMamba_OpenCLIP/
@@ -116,7 +126,7 @@ Runtime folders such as `data/`, `checkpoints/`, `outputs/`, `runs/`, `logs/`, a
 
 ---
 
-## 5. Main Source Files
+## 6. Main Source Files
 
 ### `src/robotics_data_prep/filter_data.py`
 
@@ -283,7 +293,7 @@ The registry is used to:
 
 ---
 
-## 6. Streamlit UI
+## 7. Streamlit UI
 
 The project includes a Streamlit user interface for running the full pipeline.
 
@@ -386,7 +396,7 @@ It controls the visual consistency of cards, buttons, graphs, logs, tables, and 
 
 ---
 
-## 7. Installation
+## 8. Installation
 
 Install dependencies:
 
@@ -411,7 +421,7 @@ mamba_proj
 
 ---
 
-## 8. Required External Artifacts
+## 9. Required External Artifacts
 
 Large artifacts are not stored in Git.
 
@@ -457,7 +467,7 @@ These folders are ignored by Git and should be stored locally or externally.
 
 ---
 
-## 9. Step-by-Step CLI Usage
+## 10. Step-by-Step CLI Usage
 
 The Streamlit UI is the preferred way to run the project, but the pipeline can also be executed from the command line.
 
@@ -574,7 +584,7 @@ python src/evaluate.py \
 
 ---
 
-## 10. Current Verified Configuration
+## 11. Current Verified Configuration
 
 The current working configuration used during development:
 
@@ -612,7 +622,7 @@ The current working configuration used during development:
 
 ---
 
-## 11. Verified Development Results
+## 12. Verified Development Results
 
 A verified development run used:
 
@@ -644,7 +654,7 @@ These values document a verified development run and should be updated if a new 
 
 ---
 
-## 12. Project Documentation
+## 13. Project Documentation
 
 Suggested documentation folder structure:
 
@@ -661,7 +671,8 @@ docs/
 │   └── std_results.md
 │
 ├── poster/
-│   └── Poster.pdf
+│   ├── robomamba_poster.pdf
+│   └── robomamba_poster.png
 │
 └── media/
     ├── screenshots/
@@ -680,30 +691,22 @@ The final submission should include:
 
 ---
 
-## 13. Poster and Media
+## 14. Poster and Media
 
-The project poster can be stored under:
+The poster is stored in both PDF and PNG format:
 
 ```text
-docs/poster/Poster.pdf
+docs/poster/robomamba_poster.pdf
+docs/poster/robomamba_poster.png
 ```
 
-Recommended screenshots folder:
+The PNG version is displayed directly in this README, while the PDF version is kept for full-quality viewing and submission.
+
+Recommended screenshots folder, if UI screenshots are added later:
 
 ```text
 docs/media/screenshots/
 ```
-
-Recommended demo folder:
-
-```text
-docs/media/demo/
-```
-
-For demo videos:
-
-- If the video is small, it can be committed under `docs/media/demo/`.
-- If the video is large, upload it to an external location such as Google Drive or YouTube unlisted, and place the link in `docs/final/final_summary.md`.
 
 Recommended screenshots:
 
@@ -717,9 +720,11 @@ Recommended screenshots:
 07_results.png
 ```
 
+A demo video can be added later. If the video is small, it can be stored under `docs/media/demo/`. If it is large, it is better to upload it externally and place the link in `docs/final/final_summary.md`.
+
 ---
 
-## 14. Important Git Notes
+## 15. Important Git Notes
 
 The following files and folders should not be committed:
 
@@ -758,7 +763,7 @@ git rm -r --cached checkpoints outputs data
 
 ---
 
-## 15. Known Limitations
+## 16. Known Limitations
 
 - The system is an offline dataset-based imitation-learning pipeline.
 - It does not control a physical robot in real time.
@@ -771,7 +776,7 @@ git rm -r --cached checkpoints outputs data
 
 ---
 
-## 16. Suggested Future Work
+## 17. Suggested Future Work
 
 Possible future improvements:
 
@@ -787,7 +792,7 @@ Possible future improvements:
 
 ---
 
-## 17. Project Status
+## 18. Project Status
 
 The project currently includes a working end-to-end pipeline:
 
