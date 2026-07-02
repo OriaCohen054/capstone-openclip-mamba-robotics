@@ -735,11 +735,11 @@ Original Hebrew submission documents are kept under `docs/submissions/` for acad
 - [Project Poster PDF](docs/poster/robomamba_poster.pdf)
 - [Project Poster PNG Preview](docs/poster/robomamba_poster.png)
 
-## Demo Video
+### Demo Video
 
-A short demonstration video of the RoboMamba Streamlit pipeline is available here:
+  A short demonstration video of the RoboMamba Streamlit pipeline is available here:
 
-[Watch the RoboMamba Demo](https://youtu.be/Dk0pphtGpeI)
+  [Watch the RoboMamba Demo](https://youtu.be/Dk0pphtGpeI)
 
 ## 17. Notes for Reproducibility
 
