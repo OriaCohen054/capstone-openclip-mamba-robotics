@@ -735,15 +735,6 @@ Original Hebrew submission documents are kept under `docs/submissions/` for acad
 - [Project Poster PDF](docs/poster/robomamba_poster.pdf)
 - [Project Poster PNG Preview](docs/poster/robomamba_poster.png)
 
-### Optional Media
-
-Screenshots and demo assets can be added under:
-
-```text
-docs/media/screenshots/demo/
-```
-
-If a demo video is large, it should be uploaded externally and linked from the README instead of being committed to Git.
 
 ## 17. Notes for Reproducibility
 
