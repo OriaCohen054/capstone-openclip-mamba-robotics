@@ -12,7 +12,7 @@ This project implements an offline multimodal robotic imitation-learning pipelin
 
 The system combines:
 
-- **YOLO-based trajectory filtering** for selecting usable robotic demonstrations and reducing visually invalid/silent-failure trajectories.
+- **YOLO-based trajectory filtering** for selecting usable robotic demonstrations and reducing visually invalid/silent-failure trajectories, using project-specific trained YOLO weights created from manually curated/annotated images.
 - **OpenCLIP visual embeddings** for converting image frames into compact 512-dimensional visual feature vectors.
 - **Robot state vectors** for adding non-visual robotic information.
 - **Mamba sequence modeling** for learning temporal dependencies across consecutive timesteps.
@@ -118,13 +118,23 @@ Target shape per sample: [7]
 Target = next robotic action vector
 ```
 
-Example configuration used during development:
+Example configurations used during development:
 
 ```text
 seq_length = 10
 d_model    = 128
 batch_size = 16
 learning_rate = 0.001
+```
+
+Latest documented run:
+
+```text
+seq_length = 12
+d_model    = 512
+batch_size = 64
+learning_rate = 0.001
+patience   = 7
 ```
 
 ---
@@ -170,15 +180,33 @@ capstone-openclip-mamba-robotics/
 │   └── assets/
 │
 ├── docs/
-│   ├── topic/
-│   ├── literature-review/
-│   ├── requirements/
-│   ├── sdd/
-│   ├── stp/
-│   ├── std/
 │   ├── final/
+│   │   ├── RoboMamba_Final_Summary.pdf
+│   │   └── RoboMamba_STD_Final.pdf
+│   │
+│   ├── submissions/
+│   │   ├── project_topic/
+│   │   │   ├── original_hebrew_project_topic.pdf
+│   │   │   └── RoboMamba_Project_Topic_Final.pdf
+│   │   ├── requirements/
+│   │   │   ├── original_hebrew_requirements_specification.pdf
+│   │   │   └── RoboMamba_Requirements_Specification_Final.pdf
+│   │   ├── literature_review/
+│   │   ├── sdd/
+│   │   │   ├── final_sdd.pdf
+│   │   │   └── original_hebrew_sdd.pdf
+│   │   ├── stp/
+│   │   │   ├── RoboMamba_STP_Final.pdf
+│   │   │   └── stp.pdf
+│   │   └── presentation/
+│   │
 │   ├── poster/
+│   │   ├── robomamba_poster.pdf
+│   │   └── robomamba_poster.png
+│   │
 │   └── media/
+│       └── screenshots/
+│           └── demo/
 │
 ├── requirements.txt
 ├── .gitignore
@@ -187,26 +215,20 @@ capstone-openclip-mamba-robotics/
 
 ### Documentation Folder Notes
 
-The `docs/` folder is intended to contain the project submission documents, poster, final summary, STD results, and optional media.
+The `docs/` folder contains the final project documentation, previous submission material, poster files, and optional media.
 
-Suggested final submission structure:
+The current documentation organization is:
 
 ```text
-docs/
-├── topic/                 # Project topic submission
-├── literature-review/     # Literature review submission
-├── requirements/          # Requirements document
-├── sdd/                   # Software Design Document
-├── stp/                   # Software Test Plan
-├── std/                   # Software Test Description / test results
-├── final/                 # Final summary document
-├── poster/                # Project poster PDF + PNG preview
-└── media/                 # Optional screenshots / demo links / images
+docs/final/          # Final summary and final STD
+docs/submissions/    # Project topic, requirements, literature review, SDD, STP, presentation
+docs/poster/         # Project poster PDF and PNG preview
+docs/media/          # Optional screenshots and demo assets
 ```
 
-Runtime folders such as `data/`, `checkpoints/`, `outputs/`, `runs/`, `logs/`, and `wandb/` are intentionally ignored by Git because they may contain large datasets, trained weights, generated embeddings, logs, or temporary runtime files.
+Some folders under `docs/submissions/` include both the original Hebrew submission and the final updated English version. This keeps the historical academic submissions available while also providing cleaner final English documentation.
 
----
+Runtime folders such as `data/`, `checkpoints/`, `outputs/`, `runs/`, `logs/`, and `wandb/` are intentionally ignored by Git because they may contain large datasets, trained weights, generated embeddings, logs, or temporary runtime files.
 
 ## 7. Main Source Files
 
@@ -264,14 +286,14 @@ Responsibilities:
 - construct fixed-length temporal windows,
 - pair each input window with the correct target action.
 
-Current default representation:
+Main representation:
 
 ```text
 visual_embedding_dim = 512
 robot_state_dim      = 7
 input_dim            = 519
 action_dim           = 7
-seq_length           = 10
+seq_length           = configurable, commonly 10 or 12
 ```
 
 ---
@@ -588,7 +610,47 @@ The Results screen visualizes:
 - action comparison table,
 - evaluation log.
 
----
+### Latest Documented Evaluation Run
+
+One of the final documented evaluation runs used the following configuration:
+
+```text
+run_name      = mamba_k12_d512_lr0001_20260702_192016
+seq_length    = 12
+d_model       = 512
+batch_size    = 64
+learning_rate = 0.001
+max_epochs    = 50
+patience      = 7
+```
+
+The run completed successfully with early stopping and was evaluated using the selected trained checkpoint.
+
+Evaluation summary:
+
+```text
+Valid trajectories loaded: 4172
+Training windows created: 158374
+Evaluated samples: 31675
+Saved prediction examples: 50
+
+MAE: 0.018485
+MSE: 0.004496
+```
+
+Per-dimension MAE:
+
+```text
+Dim 1: 0.0061
+Dim 2: 0.0096
+Dim 3: 0.0107
+Dim 4: 0.0068
+Dim 5: 0.0070
+Dim 6: 0.0318
+Dim 7: 0.0573
+```
+
+The final action dimension had the highest error, which is consistent with the fact that gripper/open-close related behavior can be more discrete and harder to regress as a continuous value.
 
 ## 14. Generated Files Not Stored in Git
 
@@ -623,62 +685,65 @@ Implemented:
 
 - Dataset folder validation.
 - Existing filtered CSV detection and reuse.
-- YOLO-based filtering integration.
+- YOLO-based trajectory filtering integration.
+- Manual YOLO data-curation workflow using representative trajectory images, Roboflow annotation, and trained YOLO weights.
+- Conservative filtering behavior for selecting usable trajectories.
+- YOLO stop, resume, restart, and reuse flows.
 - OpenCLIP embedding generation, cache detection, reuse, resume, and recompute.
 - Multimodal sequence loading with visual embeddings and robot-state vectors.
 - Mamba-based behavioral cloning model.
 - Training with configurable hyperparameters.
+- Early stopping and checkpoint artifact saving.
 - Checkpoint discovery and selection for evaluation.
-- Evaluation with MAE/MSE metrics.
+- Evaluation with MAE/MSE and per-dimension MAE metrics.
 - Prediction examples for qualitative review.
 - Streamlit Results visualization.
-- Basic process state persistence for long-running stages.
+- Process state persistence for long-running stages.
+- Documentation of project topic, requirements, STP, STD, final summary, and poster.
 
 Out of scope / not implemented as full system functionality:
 
 - Real robot deployment.
 - Real-time closed-loop robot control.
-- Training YOLO from scratch.
 - Fine-tuning OpenCLIP.
 - Full BridgeData benchmark evaluation across all tasks.
-- Advanced checkpoint compatibility validation across every possible model architecture change.
 - Full comparison against RNN/LSTM/Transformer baselines.
+- Standalone YOLO detector benchmarking as a separate research study.
+- Advanced checkpoint compatibility validation across every possible model architecture change.
 
----
+## 16. Project Documentation
 
-## 16. Final Submission Notes
+The repository includes project documentation under `docs/`.
 
-The final submission is expected to include:
+### Final Documentation
 
-- GitHub repository link,
-- all previous submission documents,
-- project code,
-- final summary document,
-- STD/system test results,
-- poster,
-- optional screenshots or demo video link.
+- [Final Project Summary](docs/final/RoboMamba_Final_Summary.pdf)
+- [Software Test Design (STD)](docs/final/RoboMamba_STD_Final.pdf)
 
-Suggested final summary location:
+### Updated Submission Documents
+
+- [Project Topic and Scope](docs/submissions/project_topic/RoboMamba_Project_Topic_Final.pdf)
+- [Requirements Specification](docs/submissions/requirements/RoboMamba_Requirements_Specification_Final.pdf)
+- [Software Test Plan (STP)](docs/submissions/stp/RoboMamba_STP_Final.pdf)
+
+### Original Submission Material
+
+Original Hebrew submission documents are kept under `docs/submissions/` for academic reference, including the original project topic, requirements, SDD, literature review, STP, and presentation material.
+
+### Poster
+
+- [Project Poster PDF](docs/poster/robomamba_poster.pdf)
+- [Project Poster PNG Preview](docs/poster/robomamba_poster.png)
+
+### Optional Media
+
+Screenshots and demo assets can be added under:
 
 ```text
-docs/final/final_summary.md
+docs/media/screenshots/demo/
 ```
 
-Suggested STD results location:
-
-```text
-docs/std/STD_results.md
-```
-
-Optional demo media can be placed under:
-
-```text
-docs/media/
-```
-
-If the demo video is large, it is recommended to upload it externally and include a link in the final summary instead of committing the video file to Git.
-
----
+If a demo video is large, it should be uploaded externally and linked from the README instead of being committed to Git.
 
 ## 17. Notes for Reproducibility
 
