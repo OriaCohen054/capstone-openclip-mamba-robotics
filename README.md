@@ -739,7 +739,7 @@ Original Hebrew submission documents are kept under `docs/submissions/` for acad
 
   A short demonstration video of the RoboMamba Streamlit pipeline is available here:
 
-  [Watch the RoboMamba Demo](https://youtu.be/Dk0pphtGpeI)
+  [Watch the RoboMamba Demo](https://youtu.be/O5coo0QvaRg)
 
 ## 17. Notes for Reproducibility
 
