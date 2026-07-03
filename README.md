@@ -207,6 +207,20 @@ capstone-openclip-mamba-robotics/
 │   └── media/
 │       └── screenshots/
 │           └── demo/
+│               ├── 01-ui-home-dataset-selection.png
+│               ├── 02-ui-dataset-ready.png
+│               ├── 03-ui-yolo-existing-csv.png
+│               ├── 04-ui-yolo-completed-scan.png
+│               ├── 05-ui-openclip-cache-ready.png
+│               ├── 06-ui-model-existing-checkpoint.png
+│               ├── 07-ui-model-new-training-configuration.png
+│               ├── 08-ui-mamba-training-running.png
+│               ├── 09-ui-mamba-training-completed.png
+│               ├── 10-ui-evaluation-checkpoint-ready.png
+│               ├── 11-ui-evaluation-completed-metrics.png
+│               ├── 12-ui-results-metrics-and-charts.png
+│               ├── 13-ui-results-prediction-example.png
+│               └── 14-ui-results-evaluation-log.png
 │
 ├── requirements.txt
 ├── .gitignore
@@ -223,7 +237,7 @@ The current documentation organization is:
 docs/final/          # Final summary and final STD
 docs/submissions/    # Project topic, requirements, literature review, SDD, STP, presentation
 docs/poster/         # Project poster PDF and PNG preview
-docs/media/          # Optional screenshots and demo assets
+docs/media/          # Demo screenshots and optional media assets
 ```
 
 Some folders under `docs/submissions/` include both the original Hebrew submission and the final updated English version. This keeps the historical academic submissions available while also providing cleaner final English documentation.
@@ -566,13 +580,13 @@ python src/openclip_embed.py \
 python src/train.py \
   --filtered_csv /path/to/scripted_6_18/scripted_raw/final_mamba_dataset.csv \
   --status_filter SUCCESS \
-  --seq_length 10 \
-  --d_model 128 \
-  --batch_size 16 \
+  --seq_length 12 \
+  --d_model 512 \
+  --batch_size 64 \
   --learning_rate 0.001 \
-  --max_epochs 20 \
-  --patience 5 \
-  --run_name mamba_k10_d128_lr0001_pick_success_v1
+  --max_epochs 50 \
+  --patience 7 \
+  --run_name mamba_k12_d512_lr0001_final
 ```
 
 ### Evaluation
@@ -737,9 +751,28 @@ Original Hebrew submission documents are kept under `docs/submissions/` for acad
 
 ### Demo Video
 
-  A short demonstration video of the RoboMamba Streamlit pipeline is available here:
+A short demonstration video of the RoboMamba Streamlit pipeline is available here:
 
-  [Watch the RoboMamba Demo](https://youtu.be/O5coo0QvaRg)
+[Watch the RoboMamba Demo](https://youtu.be/O5coo0QvaRg)
+
+### Demo Screenshots
+
+A compact set of UI screenshots is stored under `docs/media/screenshots/demo/`.
+
+- [UI home and dataset selection](docs/media/screenshots/demo/01-ui-home-dataset-selection.png)
+- [Dataset ready state](docs/media/screenshots/demo/02-ui-dataset-ready.png)
+- [YOLO existing CSV state](docs/media/screenshots/demo/03-ui-yolo-existing-csv.png)
+- [YOLO completed scan](docs/media/screenshots/demo/04-ui-yolo-completed-scan.png)
+- [OpenCLIP cache ready](docs/media/screenshots/demo/05-ui-openclip-cache-ready.png)
+- [Model existing checkpoint](docs/media/screenshots/demo/06-ui-model-existing-checkpoint.png)
+- [New training configuration](docs/media/screenshots/demo/07-ui-model-new-training-configuration.png)
+- [Mamba training running](docs/media/screenshots/demo/08-ui-mamba-training-running.png)
+- [Mamba training completed](docs/media/screenshots/demo/09-ui-mamba-training-completed.png)
+- [Evaluation checkpoint ready](docs/media/screenshots/demo/10-ui-evaluation-checkpoint-ready.png)
+- [Evaluation completed metrics](docs/media/screenshots/demo/11-ui-evaluation-completed-metrics.png)
+- [Results metrics and charts](docs/media/screenshots/demo/12-ui-results-metrics-and-charts.png)
+- [Results prediction example](docs/media/screenshots/demo/13-ui-results-prediction-example.png)
+- [Results evaluation log](docs/media/screenshots/demo/14-ui-results-evaluation-log.png)
 
 ## 17. Notes for Reproducibility
 
